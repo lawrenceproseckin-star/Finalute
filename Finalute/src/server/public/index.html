@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finalute - ZK Layer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --accent: #00BFA5;
+            --bg: #0C1A1A;
+            --card: #132222;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: #e6f7f7;
+            background: var(--bg);
+            max-width: 72rem; /* align width with analytics page */
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: var(--accent);
+            border-bottom: 2px solid #1f2e2e;
+            padding-bottom: 10px;
+        }
+        .card {
+            background: var(--card);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        button {
+            background: var(--accent);
+            color: #0b1515;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover {
+            filter: brightness(1.1);
+        }
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        pre {
+            background: #0f2222;
+            color: #d9ecec;
+            border: 1px solid #1f2e2e;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .status {
+            margin-top: 10px;
+            font-style: italic;
+        }
+        .progress {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background: #142424;
+            border: 1px solid #1f2e2e;
+            display: none;
+        }
+        .progress.error {
+            background: #2b1414;
+        }
+        .file-input {
+            margin: 10px 0;
+        }
+        .step {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .step.completed {
+            background: rgba(0,191,165,0.12);
+        }
+        .step.pending {
+            background: rgba(245,158,11,0.12);
+        }
+        .accent-bg { background-color: var(--accent); }
+    </style>
+</head>
+<body>
+    <header class="w-full px-6 py-4 bg-black/30 backdrop-blur border-b border-gray-800">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="text-lg font-semibold">Finalute</div>
+            <nav class="flex gap-4 text-sm">
+                <a href="/" class="px-3 py-1 rounded-lg bg-gray-800">ZK Layer</a>
+                <a href="/analytics.html" class="px-3 py-1 rounded-lg hover:bg-gray-800">Analytics & Insights</a>
+                <a href="/explorer.html" class="px-3 py-1 rounded-lg hover:bg-gray-800">Blockchain Explorer</a>
+            </nav>
+        </div>
+    </header>
+    <h1>Finalute – ZK Layer</h1>
+    
+    <div class="card">
+        <h2 class="text-gray-200">Server Status</h2>
+        <button id="checkStatus" class="accent-bg text-black font-semibold rounded-md px-4 py-2 hover:brightness-110">Check Status</button>
+        <div id="statusResult" class="status"></div>
+    </div>
+
+    <div class="card">
+        <h2 class="text-gray-200">Upload CSV Files</h2>
+        <div class="help-text" style="margin-bottom: 15px; color: #a7bcbc;">
+            Upload your CSV or Excel file containing the required data.
+        </div>
+        <div class="file-input">
+            <input type="file" id="fileInput" accept=".xlsx,.csv" class="text-sm" />
+            <button id="uploadFile" disabled class="accent-bg text-black font-semibold rounded-md px-4 py-2 hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed">Upload and Process</button>
+        </div>
+        <div id="uploadProgress" class="progress">
+            <div class="step" id="stepCommit">1. Computing tab roots...</div>
+            <div class="step" id="stepProve">2. Generating ZK proof...</div>
+            <div class="step" id="stepAnchor">3. Anchoring on-chain...</div>
+        </div>
+        <pre id="uploadResult"></pre>
+    </div>
+    
+    <div class="card">
+        <h2 class="text-gray-200">Tab Roots</h2>
+        <button id="getTabRoots" class="accent-bg text-black font-semibold rounded-md px-4 py-2 hover:brightness-110">Get Tab Roots</button>
+        <pre id="tabRootsResult"></pre>
+    </div>
+
+    <script>
+        // File upload handling (automated compute + prove + anchor)
+        const fileInput = document.getElementById('fileInput');
+        const uploadButton = document.getElementById('uploadFile');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const uploadResult = document.getElementById('uploadResult');
+        const stepCommit = document.getElementById('stepCommit');
+        const stepProve = document.getElementById('stepProve');
+        const stepAnchor = document.getElementById('stepAnchor');
+
+        fileInput.addEventListener('change', () => {
+            uploadButton.disabled = !fileInput.files.length;
+            uploadResult.textContent = '';
+        });
+
+        uploadButton.addEventListener('click', async () => {
+            const files = fileInput.files;
+            if (!files || files.length === 0) return;
+
+            // Reset UI
+            uploadProgress.style.display = 'block';
+            uploadProgress.classList.remove('error');
+            uploadResult.textContent = '';
+            uploadButton.disabled = true;
+            [stepCommit, stepProve, stepAnchor].forEach(step => {
+                step.classList.remove('completed');
+                step.classList.add('pending');
+            });
+
+            try {
+                const formData = new FormData();
+                formData.append('file', files[0]);
+
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Update progress steps
+                    [stepCommit, stepProve, stepAnchor].forEach(step => {
+                        step.classList.remove('pending');
+                        step.classList.add('completed');
+                    });
+
+                    uploadResult.textContent = JSON.stringify(result, null, 2);
+                } else {
+                    throw new Error(result.error || 'Upload failed');
+                }
+            } catch (error) {
+                uploadProgress.classList.add('error');
+                uploadResult.textContent = `Error: ${error.message}`;
+            } finally {
+                uploadButton.disabled = false;
+            }
+        });
+        document.getElementById('checkStatus').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                document.getElementById('statusResult').textContent = 
+                    `Status: ${data.status}, Version: ${data.version}`;
+            } catch (error) {
+                document.getElementById('statusResult').textContent = 
+                    `Error: ${error.message}`;
+            }
+        });
+
+        document.getElementById('getTabRoots').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/tabroots');
+                const data = await response.json();
+                document.getElementById('tabRootsResult').textContent = 
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('tabRootsResult').textContent = 
+                    `Error: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+[package]
+name = "finalute_zk"
+type = "bin"
+authors = ["Finalute"]
+compiler_version = "0.10.5"
+
+[dependencies]
+
+[workspace]
+members = []

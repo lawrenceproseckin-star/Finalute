@@ -1,0 +1,1 @@
+{"name":"finalute","version":"1.0.0","description":"Finalute ZK Layer","main":"src/cli/finalute.js","scripts":{"build":"tsc","start":"node src/cli/finalute.js","server":"node src/server/server.js"},"dependencies":{"cbor":"^10.0.11","express":"^4.21.2","multer":"^2.0.2","csv-parse":"^5.5.3","xlsx":"^0.18.5"}}
